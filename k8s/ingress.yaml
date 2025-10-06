@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: acme-it-web
+  namespace: acme-it
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+    - host: demo.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: acme-it-web
+                port:
+                  number: 80
+
+

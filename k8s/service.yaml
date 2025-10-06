@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: acme-it-web
+  namespace: acme-it
+spec:
+  selector:
+    app: acme-it-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+  type: ClusterIP
+
+

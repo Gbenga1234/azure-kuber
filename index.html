@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acme IT Solutions</title>
+    <meta name="description" content="Simple IT services website for AKS deployment demo" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+    <header class="site-header">
+        <div class="container header-inner">
+            <div class="brand">
+                <span class="logo">⚡</span>
+                <span class="brand-name">Acme IT</span>
+            </div>
+            <nav class="nav">
+                <a href="#services">Services</a>
+                <a href="#about">About</a>
+                <a href="#contact">Contact</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container hero-inner">
+                <h1>Modern IT Services, Delivered Fast</h1>
+                <p>Cloud, containers, and automation to accelerate your business.</p>
+                <button id="ctaButton" class="primary-btn">Get a Free Assessment</button>
+            </div>
+        </section>
+
+        <section id="services" class="section">
+            <div class="container grid-3">
+                <div class="card">
+                    <h3>Kubernetes</h3>
+                    <p>Design, deploy, and optimize clusters on Azure Kubernetes Service (AKS).</p>
+                </div>
+                <div class="card">
+                    <h3>DevOps</h3>
+                    <p>CI/CD pipelines with GitHub Actions to ship features with confidence.</p>
+                </div>
+                <div class="card">
+                    <h3>Cloud</h3>
+                    <p>Secure, scalable cloud architectures on Azure tailored to your needs.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="about" class="section alt">
+            <div class="container">
+                <h2>About Us</h2>
+                <p>We are a small, senior team focused on practical solutions that work. This site is a demo used for learning how to deploy to AKS with GitHub Actions.</p>
+            </div>
+        </section>
+
+        <section id="contact" class="section">
+            <div class="container">
+                <h2>Contact</h2>
+                <form id="contactForm" class="contact-form">
+                    <div class="form-row">
+                        <label for="name">Name</label>
+                        <input id="name" name="name" type="text" placeholder="Jane Doe" required />
+                    </div>
+                    <div class="form-row">
+                        <label for="email">Email</label>
+                        <input id="email" name="email" type="email" placeholder="jane@example.com" required />
+                    </div>
+                    <div class="form-row">
+                        <label for="message">Message</label>
+                        <textarea id="message" name="message" rows="4" placeholder="Tell us about your project..."></textarea>
+                    </div>
+                    <button class="primary-btn" type="submit">Send</button>
+                    <p id="formStatus" class="form-status" aria-live="polite"></p>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <span>© <span id="year"></span> Acme IT Solutions</span>
+        </div>
+    </footer>
+
+    <script src="assets/script.js"></script>
+    <script>
+        document.getElementById('year').textContent = new Date().getFullYear();
+    </script>
+</body>
+</html>
+
+

@@ -1,0 +1,82 @@
+name: Build and Deploy to AKS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ${{ vars.ACR_LOGIN_SERVER }} # e.g. myregistry.azurecr.io
+  IMAGE_NAME: acme-it-web
+  AKS_NAMESPACE: acme-it
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Azure Container Registry Login
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az acr login --name "${{ vars.ACR_NAME }}"
+
+      - name: Build and push image
+        run: |
+          docker build -t $REGISTRY/$IMAGE_NAME:${{ github.sha }} -t $REGISTRY/$IMAGE_NAME:latest .
+          docker push $REGISTRY/$IMAGE_NAME:${{ github.sha }}
+          docker push $REGISTRY/$IMAGE_NAME:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ vars.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ vars.AKS_CLUSTER_NAME }}
+
+      - name: Create namespace if not exists
+        run: |
+          kubectl get ns $AKS_NAMESPACE || kubectl create ns $AKS_NAMESPACE
+
+      - name: Update image in deployment manifest
+        run: |
+          sed -i 's#ghcr.io/OWNER/REPO/acme-it-web:latest#'"$REGISTRY/$IMAGE_NAME:${{ github.sha }}"'#' k8s/deployment.yaml
+
+      - name: Apply manifests
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+          if [ -f k8s/ingress.yaml ]; then kubectl apply -f k8s/ingress.yaml; fi
+
+      - name: Wait for rollout
+        run: |
+          kubectl -n $AKS_NAMESPACE rollout status deploy/acme-it-web --timeout=120s
+
+
