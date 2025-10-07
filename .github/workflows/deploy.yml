@@ -76,6 +76,8 @@ jobs:
           kubectl apply -f k8s/service.yaml
           if [ -f k8s/ingress.yaml ]; then kubectl apply -f k8s/ingress.yaml; fi
 
-      - name: Wait for rollout
+      -  name: Wait for rollout (up to 10m)
         run: |
-          kubectl -n $AKS_NAMESPACE rollout status deploy/acme-it-web --timeout=120s
+          # give kubelet a head start to pull image
+          sleep 20
+          kubectl -n $AKS_NAMESPACE rollout status deploy/acme-it-web --timeout=10m
