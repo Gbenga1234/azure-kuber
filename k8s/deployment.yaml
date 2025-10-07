@@ -3,8 +3,8 @@ kind: Deployment
 metadata:
   name: acme-it-web
   namespace: acme-it
-labels:
-  app: acme-it-web
+  labels:                # <-- moved under metadata
+    app: acme-it-web
 spec:
   replicas: 2
   revisionHistoryLimit: 3
@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: acme-it-web
-          image: IMAGE_PLACEHOLDER   # <-- replaced by the workflow
+          image: IMAGE_PLACEHOLDER          # replaced by the workflow
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
@@ -40,8 +40,8 @@ spec:
             failureThreshold: 6
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              cpu: "100m"
+              memory: "128Mi"
             limits:
-              cpu: 500m
-              memory: 512Mi
+              cpu: "500m"
+              memory: "512Mi"
