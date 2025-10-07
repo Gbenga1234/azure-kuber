@@ -5,6 +5,12 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Workflow-wide permissions (so OIDC works in every job)
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
 env:
   REGISTRY: ${{ vars.ACR_LOGIN_SERVER }} # e.g. myregistry.azurecr.io
   IMAGE_NAME: acme-it-web
@@ -13,10 +19,6 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -69,7 +71,7 @@ jobs:
 
       - name: Apply manifests
         run: |
-          kubectl apply -f k8s/namespace.yaml
+          # namespace.yaml omitted since we create it above if missing
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
           if [ -f k8s/ingress.yaml ]; then kubectl apply -f k8s/ingress.yaml; fi
@@ -77,5 +79,3 @@ jobs:
       - name: Wait for rollout
         run: |
           kubectl -n $AKS_NAMESPACE rollout status deploy/acme-it-web --timeout=120s
-
-
