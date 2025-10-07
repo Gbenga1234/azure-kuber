@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# OIDC token for all jobs
+# Workflow-wide permissions (so OIDC works in every job)
 permissions:
   contents: read
   packages: write
@@ -79,6 +79,7 @@ jobs:
 
       - name: Apply manifests
         run: |
+          # namespace.yaml omitted since we create it above if missing
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
           if [ -f k8s/ingress.yaml ]; then kubectl apply -f k8s/ingress.yaml; fi
