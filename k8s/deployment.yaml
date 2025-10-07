@@ -3,10 +3,11 @@ kind: Deployment
 metadata:
   name: acme-it-web
   namespace: acme-it
-  labels:
-    app: acme-it-web
+labels:
+  app: acme-it-web
 spec:
   replicas: 2
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: acme-it-web
@@ -16,23 +17,31 @@ spec:
         app: acme-it-web
     spec:
       containers:
-        - name: web
-          image: ghcr.io/OWNER/REPO/acme-it-web:latest
-          imagePullPolicy: Always
+        - name: acme-it-web
+          image: IMAGE_PLACEHOLDER   # <-- replaced by the workflow
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
           readinessProbe:
             httpGet:
               path: /
               port: 80
-            initialDelaySeconds: 3
+            initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
           livenessProbe:
             httpGet:
               path: /
               port: 80
             initialDelaySeconds: 10
             periodSeconds: 20
-      restartPolicy: Always
-
-
+            timeoutSeconds: 2
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

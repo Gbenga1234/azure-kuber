@@ -5,78 +5,99 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# OIDC token for all jobs
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
 env:
-  REGISTRY: ${{ vars.ACR_LOGIN_SERVER }} # e.g. myregistry.azurecr.io
+  REGISTRY: ${{ vars.ACR_LOGIN_SERVER }}    # myregistry.azurecr.io
   IMAGE_NAME: acme-it-web
-  AKS_NAMESPACE: acme-it
+  AKS_NAMESPACE: ${{ vars.AKS_NAMESPACE || 'acme-it' }}
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Login to Azure
+      - name: Login to Azure (OIDC)
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Azure Container Registry Login
-        uses: azure/cli@v2
-        with:
-          inlineScript: |
-            az acr login --name "${{ vars.ACR_NAME }}"
+      # Buildx + cache = faster pushes
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build and push image
+      - name: Login to ACR (token-based)
         run: |
-          docker build -t $REGISTRY/$IMAGE_NAME:${{ github.sha }} -t $REGISTRY/$IMAGE_NAME:latest .
-          docker push $REGISTRY/$IMAGE_NAME:${{ github.sha }}
-          docker push $REGISTRY/$IMAGE_NAME:latest
+          TOKEN=$(az acr login -n "${{ vars.ACR_NAME }}" --expose-token -o tsv --query accessToken)
+          echo "$TOKEN" | docker login "$REGISTRY" -u 00000000-0000-0000-0000-000000000000 --password-stdin
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Login to Azure
+      - name: Login to Azure (OIDC)
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Set AKS context
+      - name: Set AKS context (user creds)
         uses: azure/aks-set-context@v4
         with:
           resource-group: ${{ vars.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ vars.AKS_CLUSTER_NAME }}
+          # admin: true  # uncomment if you granted Cluster Admin Role instead
 
-      - name: Create namespace if not exists
+      - name: Ensure namespace exists
         run: |
           kubectl get ns $AKS_NAMESPACE || kubectl create ns $AKS_NAMESPACE
 
-      - name: Update image in deployment manifest
+      - name: Inject image tag into deployment
         run: |
-          sed -i 's#ghcr.io/OWNER/REPO/acme-it-web:latest#'"$REGISTRY/$IMAGE_NAME:${{ github.sha }}"'#' k8s/deployment.yaml
+          sed -i 's#IMAGE_PLACEHOLDER#'"$REGISTRY/$IMAGE_NAME:${{ github.sha }}"'#' k8s/deployment.yaml
 
       - name: Apply manifests
         run: |
-          kubectl apply -f k8s/namespace.yaml
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
           if [ -f k8s/ingress.yaml ]; then kubectl apply -f k8s/ingress.yaml; fi
 
-      - name: Wait for rollout
+      - name: Wait for rollout (up to 10m)
         run: |
-          kubectl -n $AKS_NAMESPACE rollout status deploy/acme-it-web --timeout=120s
+          sleep 20
+          kubectl -n $AKS_NAMESPACE rollout status deploy/${{ env.IMAGE_NAME }} --timeout=10m
 
-
+      # Auto-debug if rollout fails
+      - name: Debug on failure
+        if: failure()
+        run: |
+          echo "=== DEPLOYMENT ==="
+          kubectl -n $AKS_NAMESPACE describe deploy $IMAGE_NAME || true
+          echo "=== PODS ==="
+          kubectl -n $AKS_NAMESPACE get pods -o wide || true
+          kubectl -n $AKS_NAMESPACE describe pods -l app=$IMAGE_NAME || true
+          echo "=== EVENTS ==="
+          kubectl -n $AKS_NAMESPACE get events --sort-by=.lastTimestamp | tail -n 50 || true
+          POD=$(kubectl -n $AKS_NAMESPACE get pods -l app=$IMAGE_NAME -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [ -n "$POD" ]; then kubectl -n $AKS_NAMESPACE logs "$POD" --all-containers --tail=200 || true; fi
